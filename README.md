@@ -61,8 +61,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 
 The interactive backend documentation will be accessible at http://127.0.0.1:8000/docs.
+```
 
-2. Frontend Setup
+### 2. Frontend Setup
+```bash
 Bash
 cd frontend
 npm install
