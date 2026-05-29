@@ -1,0 +1,16 @@
+# Ignore local processing storage
+storage/
+
+# Ignore Python cache artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Ignore local environment configurations
+.env
+venv/
+ENV/
+
+# Ignore OS-specific system files
+Thumbs.db
+.DS_Store
