@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 function App() {
   const [videoFile, setVideoFile] = useState(null);
@@ -19,7 +20,7 @@ function App() {
     if (meetingId && loading) {
       intervalId = setInterval(async () => {
         try {
-          const res = await fetch(`http://localhost:8000/api/status/${meetingId}`);
+          const res = await fetch(`${API_BASE_URL}/api/status/${meetingId}`);
           const data = await res.json();
           const progress = data.progress;
           
@@ -60,7 +61,7 @@ function App() {
     formData.append("deck", deckFile);
 
     try {
-      const response = await fetch("http://localhost:8000/api/upload", {
+      const response = await fetch(`${API_BASE_URL}/api/upload`, {
         method: "POST",
         body: formData,
       });
@@ -91,7 +92,7 @@ function App() {
     setChatHistory(prev => [...prev, { role: "user", text: queryToSend }]);
 
     try {
-      const response = await fetch(`http://localhost:8000/api/query/${meetingId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/query/${meetingId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: queryToSend }),
