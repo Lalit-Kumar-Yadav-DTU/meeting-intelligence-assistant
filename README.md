@@ -16,6 +16,11 @@ Low-level binary manipulation maps all three to a **unified timeline**. Users th
 
 ---
 
+---
+<img width="1278" height="888" alt="image" src="https://github.com/user-attachments/assets/bf781ecb-03a9-4d81-9881-afa4d6f11661" />
+
+---
+
 ## Why It Was Built
 
 Professional and technical teams lose countless hours bouncing between video playback, slide decks, and disconnected transcripts just to pinpoint key architectural conclusions or action items.
