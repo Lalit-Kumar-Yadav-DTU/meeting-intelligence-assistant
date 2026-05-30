@@ -2,6 +2,8 @@
 
 > Unify fragmented meeting streams — video, slides, and audio — into a single queryable intelligence layer.
 
+LIVE: https://meeting-intelligence-client.onrender.com/
+
 ---
 
 ## What It Does
@@ -17,7 +19,9 @@ Low-level binary manipulation maps all three to a **unified timeline**. Users th
 ---
 
 ---
-<img width="1278" height="888" alt="image" src="https://github.com/user-attachments/assets/bf781ecb-03a9-4d81-9881-afa4d6f11661" />
+<img width="1598" height="967" alt="image" src="https://github.com/user-attachments/assets/0cf5ea9d-67e1-44e5-87cd-1273cc950584" />
+
+<img width="1565" height="958" alt="image" src="https://github.com/user-attachments/assets/dcee9009-5a8b-4721-a42e-ae52a67a6090" />
 
 ---
 
