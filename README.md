@@ -1,71 +1,161 @@
-# Multimodal Meeting Intelligence Assistant
+# 🧠 Meeting Intelligence Assistant
 
-A production-grade, temporal cross-modal analytics system built to ingest meeting video streams, extracted multi-channel audio transcripts, and presentation decks to answer grounded, context-aware user queries across all modalities simultaneously.
-
----
-
-## 🚀 What It Does
-This assistant solves the problem of context fragmentation in asynchronous corporate and academic workflows by merging video recordings, speech transcripts, and presentation slides into a unified temporal index. Instead of manually scanning hours of footage or reading disjointed documents, users can query the engine across data types (e.g., matching spoken words to visual slide transitions) and receive accurate, grounded answers complete with timestamp markers, speaker logs, and slide numbers.
-
-## 🎯 Why I Built This
-I chose this problem because it represents a profound distributed data alignment and compute optimization challenge rather than a simple wrapper application. Building a system that accurately references unstructured video frames, textual slide layouts, and temporal audio waveforms requires designing a strict unified timeline index. This problem allowed me to dive deep into media processing bottlenecks using FFmpeg pipelines, explore efficient GPU model allocation hosting open-source vision-language architectures, and design non-blocking asynchronous streaming engines.
+> Unify fragmented meeting streams — video, slides, and audio — into a single queryable intelligence layer.
 
 ---
 
-## 🛠️ System Architecture Decisions
+## What It Does
 
-### 1. Asynchronous Background Workers vs. Synchronous Request Threads
-* **Decision:** File ingestion and multimedia splitting tasks are offloaded to FastAPI’s `BackgroundTasks` pool, returning an immediate `200 Ingested` event tracking ID to the client.
-* **Reasoning:** Processing heavy multi-gigabyte meeting video files through FFmpeg handles intensive CPU/IO block operations. Running this synchronously would freeze the ASGI server event loop, causing client request timeouts and breaking production availability.
+The **Meeting Intelligence Assistant** solves the critical issue of **context fragmentation** in professional and academic workflows. It ingests three distinct multimodal inputs simultaneously:
 
-### 2. 1-FPS Discrete Keyframe Sampling vs. Continuous Frame Buffering
-* **Decision:** Videos are sampled at a strict discrete rate of exactly 1 frame per second (FPS), generating sequentially named assets (`frame_0001.png`, `frame_0002.png`).
-* **Reasoning:** Buffering full video tracks or extracting at native frame rates (30+ FPS) forces massive storage inflation and overwhelms vision-language models with redundant pixel configurations. A 1-FPS sampling rate creates a clean mathematical equivalence ($T\text{ seconds} = \text{frame\_000T.png}$), allowing linear temporal lookups while slashing downstream visual processing overhead by 96%.
+- 🎥 A multiplexed screen recording / video
+- 📄 Raw presentation slides (PDF)
+- 🎙️ Extracted meeting audio tracks
 
-### 3. Native vLLM Model Serving vs. Commercial Managed APIs
-* **Decision:** Deployed an open OpenAI-compatible inference server running `Qwen2-VL-7B-Instruct` locally on the Jarvis Labs GPU instance via `vLLM`.
-* **Reasoning:** To achieve true infrastructure ownership and avoid data privacy constraints or erratic external rate-limits, model inference is self-hosted. Choosing `vLLM` allows the platform to exploit PagedAttention mechanisms, drastically minimizing Key-Value (KV) cache fragmentation during long multi-modal document analysis sessions.
+Low-level binary manipulation maps all three to a **unified timeline**. Users then interact with a conversational interface to receive grounded, cross-modal answers that trace information across visual, textual, and spoken modalities — instantly.
 
 ---
 
-## 🤖 What I Used AI For
+## Why It Was Built
 
-* **Automated Elements:** I utilized AI coding assistants to generate repetitive boilerplate elements, including standard Tailwind CSS component structures, initial FastAPI CORS configuration blocks, and sample multi-part form schema validators.
-* **Hand-Written Core Logic:** All underlying FFmpeg pipeline commands, structural path routing mechanisms across OS environments, and temporal synchronization array joins were written purely by hand to guarantee absolute execution control.
-* **Where I Overrode AI Suggestions:** The AI assistant initially recommended loading the entire presentation PDF and visual frame collections directly into memory heaps using basic list structures to execute searches. I completely vetoed this implementation because running massive image lists concurrently would trigger Out-Of-Memory (OOM) kernel panics on the host node. I overrode the suggestion by designing a disk-backed, chunked file-stream pipeline that pulls specific 1-FPS frame images sequentially only when the timestamp validation window requires it.
+Professional and technical teams lose countless hours bouncing between video playback, slide decks, and disconnected transcripts just to pinpoint key architectural conclusions or action items.
 
----
+This system addresses that pain by combining:
 
-## 📈 Cross-Modal Validation Scenario Examples
+- Low-level multimedia processing (FFmpeg stream parsing)
+- Non-blocking async network architecture
+- Native multimodal reasoning models on cloud GPU nodes
 
-The platform handles cross-modal queries by joining the extracted audio transcript timestamps with the visual slide transition layout. Here are three core example scenarios verified by the pipeline:
-
-1.  **"What was the final decision on the pricing change?"**
-    * *How it's answered:* The engine runs semantic searches over the audio transcript to find where pricing was debated, extracts the exact timestamp window, pulls the matching video frame to see the slide displayed, and cross-references it with the PDF deck to extract the exact figures.
-2.  **"Which slide was being discussed when the budget came up?"**
-    * *How it's answered:* The system matches the transcript segment discussing "budget allocations" to its timestamp ($T = 03:45$), looks up the 1-FPS visual frame index at `frame_0225.png`, maps the text elements on that slide to the layout extracted from the PDF, and grounds the answer to the user as **"Slide 4"**.
-3.  **"Who disagreed with the timeline and what did they propose instead?"**
-    * *How it's answered:* Uses temporal transcript isolation to detect vocal disagreement patterns and extracts the alternate timeline metric written on the shared screen recording frame at that precise moment.
+...to synthesize fragmented, time-series data streams into a clean, queryable interface.
 
 ---
 
-## 📦 How to Run It
+## Prerequisites
 
-### Prerequisites
-Ensure you have Python 3.10+, Node.js 18+, and the system-level `ffmpeg` binary installed on your host machine.
+Ensure your environment has **FFmpeg** installed and is running **Python 3.10+**:
 
-### 1. Backend Setup
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-
-The interactive backend documentation will be accessible at http://127.0.0.1:8000/docs.
+sudo apt-get update && sudo apt-get install -y ffmpeg
 ```
 
-### 2. Frontend Setup
+---
+
+## Getting Started
+
+### 1. Clone & Set Up the Backend
+
 ```bash
-Bash
-cd frontend
+cd /home/meeting-intelligence-assistant/backend
+pip install fastapi uvicorn python-dotenv pypdf ffmpeg-python google-genai pydantic
+```
+
+Create a `.env` file inside the `backend/` directory:
+
+```plaintext
+GEMINI_API_KEY="your_actual_gemini_api_key_here"
+```
+
+Launch the processing server:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 2. Set Up the Frontend
+
+Open a second terminal, navigate to the frontend directory, and start the app:
+
+```bash
+cd /home/meeting-intelligence-assistant/frontend
 npm install
 npm run dev
+```
+
+Open your browser and visit: **http://localhost:5173**
+
+---
+
+## Architecture Decisions
+
+### ⚙️ Decoupled Asynchronous Background Workers (FastAPI + BackgroundTasks)
+
+Processing large video and document data (de-multiplexing streams, frame extraction, PDF parsing) takes considerable time. A synchronous architecture would block network worker processes, causing request timeouts and a frozen UI.
+
+**Solution:** An asynchronous execution pool using FastAPI background workers with an in-memory job state tracker. Processing states update dynamically while the client polls freely without locking resources.
+
+---
+
+### 🎞️ 1-FPS Keyframe Video Frame Sampling
+
+Streaming raw multi-gigabyte video files into an AI context window creates extreme token overhead, slows response times, and inflates API compute costs.
+
+**Solution:** FFmpeg isolates and samples sequential keyframes at exactly **1 frame/second**. This preserves spatial artifacts and visual grounding cues while reducing data density by over **90%**.
+
+---
+
+### 🔌 Lazy-Loaded Client Strategy for Environment Context
+
+Declaring cloud API endpoints globally causes immediate crashes during server boot if environment paths load even a millisecond late.
+
+**Solution:** `genai.Client()` is initialized inside individual functional execution hooks (not at the global import layer), guaranteeing clean server launches and smooth connection initialization when a job starts.
+
+---
+
+## What AI Was Used For
+
+| Component | Approach |
+|---|---|
+| Baseline UI layout styles | AI-assisted |
+| Pydantic type validation definitions | AI-assisted |
+| FastAPI CORS middleware setup | AI-assisted |
+| Core filesystem ingestion directories | Hand-written |
+| FFmpeg audio-resampling parameters (16kHz mono WAV) | Hand-written |
+| Frontend state memory polling loop | Hand-written |
+| `.env` context loading flow | Hand-written |
+| Modern `google-genai` SDK integration | Manually overridden (rejected legacy suggestions) |
+| Single multi-stream contextual payload architecture | Custom-designed (rejected multi-stage chaining) |
+
+---
+
+## Sample Queries & Cross-Modal Grounding
+
+### Query 1 — Audio + PDF
+> *"Which animal species lives longer according to the conversation, and does this topic exist anywhere in the uploaded slides?"*
+
+The assistant isolates the audio at `00:46` to determine the Greenland shark lives 270–512 years (outliving the giant tortoise), then cross-references all 20 slide pages — explicitly flagging that the topic is absent from the computer science interview deck.
+
+---
+
+### Query 2 — Audio + Video Frame
+> *"What project conclusions were reached at timestamp 00:21, and what was shown on screen at that time?"*
+
+The assistant extracts the spoken content at `00:21` (discussion of African elephants living 60–85 years), then anchors the corresponding visual to `/processed/videoplayback/frames/frame_0021.png`.
+
+---
+
+### Query 3 — Audio + PDF
+> *"Review the action items from the talk and identify which specific slide maps to those deliverables."*
+
+The assistant builds an action item array from the spoken conversation, then runs a string-similarity check against the slide text index — outputting a clear slide reference (e.g., **Slide 4**) for user verification.
+
+---
+
+## Roadmap (Given 4 More Weeks)
+
+- **Production Task Management** — Replace in-memory state with **Redis + Celery** for horizontal scaling across heavy media uploads.
+- **Native GPU Engine Layer** — Host model weights directly in JarvisLabs GPU container VRAM using `faster-whisper` for audio and a self-hosted **Qwen-Omni** for local, secure inference.
+- **Interactive Video Synchronization** — Integrate an HTML5 video component where clicking a timestamp badge in the dashboard automatically seeks the video to that exact second and renders the matching slide side-by-side.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend framework | FastAPI |
+| Media processing | FFmpeg |
+| AI / Multimodal model | Google Gemini (`google-genai` SDK) |
+| PDF parsing | pypdf |
+| Data validation | Pydantic |
+| Frontend | Vite (Node.js) |
+| Environment config | python-dotenv |

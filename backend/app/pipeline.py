@@ -88,7 +88,7 @@ class MeetingPipeline:
         logger.info("Initializing multimodal analysis pipeline via modern GenAI SDK...")
         
         try:
-            # Initialize client at execution time to ensure system environment keys are fully populated
+            # Initialize client locally to ensure Uvicorn starts gracefully before env load
             client = genai.Client()
 
             # 1. Stage the file payload using the updated files API
@@ -134,3 +134,48 @@ class MeetingPipeline:
         except Exception as e:
             logger.error(f"Gemini Intelligence Engine Failure: {str(e)}")
             raise Exception(f"AI synchronization pipeline failed: {str(e)}")
+
+    @staticmethod
+    def answer_meeting_query(question: str, audio_path: str, slide_index: list) -> str:
+        """
+        Uploads the raw meeting audio track to Gemini and blends it with 
+        the presentation slide text to answer a user's custom question dynamically.
+        """
+        logger.info(f"Processing interactive user query against raw audio track: '{question}'")
+        try:
+            client = genai.Client()
+
+            # 1. Stage the audio file payload so the model can process it natively
+            logger.info("Uploading audio track for dynamic context analysis...")
+            audio_file = client.files.upload(file=audio_path)
+            logger.info(f"Staging file ready. Remote Target URI: {audio_file.name}")
+
+            # 2. Instruct the model to analyze both the audio file and slide text arrays
+            prompt = f"""
+            You are an advanced Meeting Intelligence Assistant. You have access to the raw audio track of the meeting presentation and a sequential text index of the presentation slides displayed.
+
+            Here is the text content from the presentation deck slide-by-slide:
+            {json.dumps(slide_index, indent=2)}
+
+            User Question: "{question}"
+
+            Listen to the audio track carefully and cross-reference it with the slide text content to formulate a clear, direct, and concise answer to the user's question. 
+            If the answer cannot be inferred or verified from either the audio track or the presentation slides, state clearly that the information was not covered in the processed meeting assets. Do not hallucinate external facts.
+            """
+
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[audio_file, prompt]
+            )
+
+            # 3. Clean up the staging track from cloud storage instantly
+            logger.info("Cleaning up dynamic Q&A staging track...")
+            client.files.delete(name=audio_file.name)
+
+            return response.text.strip()
+
+        except Exception as e:
+            logger.error(f"GenAI Q&A Dynamic Layer Failure: {str(e)}")
+            raise Exception(f"Failed to extract grounded answer: {str(e)}")
+
+        

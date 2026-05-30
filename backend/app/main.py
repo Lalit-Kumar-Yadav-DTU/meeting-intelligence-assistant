@@ -1,11 +1,18 @@
+from dotenv import load_dotenv
+load_dotenv()  # Absolute top-level execution to load GEMINI_API_KEY into environment memory
+
 import os
 import shutil
+from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.pipeline import MeetingPipeline
+
+class QueryRequest(BaseModel):
+    question: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -60,7 +67,8 @@ def async_processing_worker(meeting_id: str, video_path: str, deck_path: str):
             "audio_path": audio_output,
             "frames_directory": frames_dir,
             "slide_count": len(slide_data),
-            "analytics": intelligence_report  # Fully passes the structured timeline & action items
+            "slide_index": slide_data,                      # Stored cleanly for interactive Q&A grounding
+            "analytics": intelligence_report                  # Fully passes the structured timeline & action items
         }
         
     except Exception as e:
@@ -111,3 +119,26 @@ def get_processing_status(meeting_id: str):
     if meeting_id not in processing_jobs:
         raise HTTPException(status_code=404, detail="Meeting pipeline instance not found.")
     return {"meeting_id": meeting_id, "progress": processing_jobs[meeting_id]}
+
+@app.post("/api/query/{meeting_id}")
+def query_meeting_context(meeting_id: str, payload: QueryRequest):
+    """Endpoint to ask custom, open-ended questions grounded in the meeting data."""
+    if meeting_id not in processing_jobs:
+        raise HTTPException(status_code=404, detail="Meeting profile instance not found.")
+
+    job_data = processing_jobs[meeting_id]
+
+    # Check if the pipeline has finished processing completely
+    if isinstance(job_data, str) or job_data.get("status") != "completed":
+        raise HTTPException(status_code=400, detail="Meeting asset is still processing or failed.")
+
+    try:
+        # Pass the audio path directly so the query layer can perform raw audio extraction
+        answer = MeetingPipeline.answer_meeting_query(
+            question=payload.question,
+            audio_path=job_data.get("audio_path"),
+            slide_index=job_data.get("slide_index", [])
+        )
+        return {"meeting_id": meeting_id, "answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

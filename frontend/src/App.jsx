@@ -7,20 +7,22 @@ function App() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [pipelineData, setPipelineData] = useState(null);
-  // State to manage which analytics tab is active
   const [activeTab, setActiveTab] = useState("timeline");
 
-  // Poll the backend status endpoint while processing
+  // New Conversational Q&A States
+  const [userQuery, setUserQuery] = useState("");
+  const [queryLoading, setQueryLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+
   useEffect(() => {
     let intervalId;
-
     if (meetingId && loading) {
       intervalId = setInterval(async () => {
         try {
           const res = await fetch(`http://localhost:8000/api/status/${meetingId}`);
           const data = await res.json();
-          
           const progress = data.progress;
+          
           if (typeof progress === "object" && progress.status === "completed") {
             setStatus("Success! Processing complete.");
             setPipelineData(progress);
@@ -31,14 +33,13 @@ function App() {
             setLoading(false);
             clearInterval(intervalId);
           } else {
-            setStatus(progress); // Shows current step string
+            setStatus(progress);
           }
         } catch (err) {
           console.error("Error checking task status:", err);
         }
-      }, 2000); // Poll every 2 seconds
+      }, 2000);
     }
-
     return () => clearInterval(intervalId);
   }, [meetingId, loading]);
 
@@ -52,6 +53,7 @@ function App() {
     setLoading(true);
     setStatus("Uploading files to cloud processing cluster...");
     setPipelineData(null);
+    setChatHistory([]);
 
     const formData = new FormData();
     formData.append("video", videoFile);
@@ -74,6 +76,35 @@ function App() {
     } catch (error) {
       setStatus(`Error: ${error.message}`);
       setLoading(false);
+    }
+  };
+
+  const handleAskQuestion = async (e) => {
+    e.preventDefault();
+    if (!userQuery.trim()) return;
+
+    const queryToSend = userQuery;
+    setUserQuery("");
+    setQueryLoading(true);
+
+    // Append user message instantly to history
+    setChatHistory(prev => [...prev, { role: "user", text: queryToSend }]);
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/query/${meetingId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: queryToSend }),
+      });
+
+      if (!response.ok) throw new Error("Failed to compile grounded answer.");
+
+      const data = await response.json();
+      setChatHistory(prev => [...prev, { role: "assistant", text: data.answer }]);
+    } catch (err) {
+      setChatHistory(prev => [...prev, { role: "assistant", text: `Error: ${err.message}` }]);
+    } finally {
+      setQueryLoading(false);
     }
   };
 
@@ -129,10 +160,9 @@ function App() {
         </section>
       </div>
 
-      {/* Structured Pipeline Outputs Presentation layer */}
       {pipelineData && (
         <>
-          {/* Section 1: Physical Workspace Artifacts */}
+          {/* Physical Workspace Artifacts */}
           <section style={{ ...styles.card, marginTop: "24px" }}>
             <h2 style={{ ...styles.cardTitle, color: "#10b981" }}>✅ Pipeline Workspace Outputs Generated</h2>
             <div style={styles.outputGrid}>
@@ -151,69 +181,95 @@ function App() {
             </div>
           </section>
 
-          {/* Section 2: AI Intelligence Dashboard - NEW */}
+          {/* AI Intelligence Dashboard Container */}
           {pipelineData.analytics && (
-            <section style={{ ...styles.card, marginTop: "24px" }}>
-              <h2 style={{ ...styles.cardTitle, color: "#2563eb" }}>🧠 Meeting Intelligence Dashboard</h2>
+            <div style={styles.dashboardSplitGrid}>
               
-              <div style={styles.analyticsWrapper}>
-                
-                {/* Executive Summary Hero Box */}
-                <div style={styles.summaryCard}>
-                  <h4 style={{margin: '0 0 10px 0', color: '#1e40af'}}>Executive Summary</h4>
-                  <p style={styles.summaryText}>{pipelineData.analytics.executive_summary}</p>
-                </div>
+              {/* Left Column: Report Analytics */}
+              <section style={styles.card}>
+                <h2 style={{ ...styles.cardTitle, color: "#2563eb" }}>🧠 Structured Meeting Report</h2>
+                <div style={styles.analyticsWrapper}>
+                  <div style={styles.summaryCard}>
+                    <h4 style={{margin: '0 0 10px 0', color: '#1e3a8a'}}>Executive Summary</h4>
+                    <p style={styles.summaryText}>{pipelineData.analytics.executive_summary}</p>
+                  </div>
 
-                {/* Internal Navigation Tabs */}
-                <div style={styles.tabBar}>
-                  <button 
-                    onClick={() => setActiveTab("timeline")} 
-                    style={activeTab === "timeline" ? styles.activeTabButton : styles.tabButton}
-                  >
-                    🕒 Synchronized Timeline ({pipelineData.analytics.timeline?.length || 0})
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab("actions")} 
-                    style={activeTab === "actions" ? styles.activeTabButton : styles.tabButton}
-                  >
-                    📋 Action Items ({pipelineData.analytics.action_items?.length || 0})
-                  </button>
-                </div>
+                  <div style={styles.tabBar}>
+                    <button onClick={() => setActiveTab("timeline")} style={activeTab === "timeline" ? styles.activeTabButton : styles.tabButton}>🕒 Timeline</button>
+                    <button onClick={() => setActiveTab("actions")} style={activeTab === "actions" ? styles.activeTabButton : styles.tabButton}>📋 Actions</button>
+                  </div>
 
-                {/* Tab Content Display Area */}
-                <div style={styles.tabContentContainer}>
-                  
-                  {/* Timeline Render */}
-                  {activeTab === "timeline" && (
-                    <div style={styles.tabContentList}>
-                      {pipelineData.analytics.timeline?.map((item, index) => (
-                        <div key={index} style={styles.timelineItem}>
-                          <div style={styles.timelineMeta}>
-                            <span style={styles.timeBadge}>{item.timestamp}</span>
-                            <span style={styles.slideBadge}>Slide Reference: {item.slide_reference}</span>
+                  <div style={styles.tabContentContainer}>
+                    {activeTab === "timeline" && (
+                      <div style={styles.tabContentList}>
+                        {pipelineData.analytics.timeline?.map((item, index) => (
+                          <div key={index} style={styles.timelineItem}>
+                            <div style={styles.timelineMeta}>
+                              <span style={styles.timeBadge}>{item.timestamp}</span>
+                              <span style={styles.slideBadge}>Slide: {item.slide_reference}</span>
+                            </div>
+                            <h5 style={styles.itemTitle}>{item.topic}</h5>
+                            <p style={styles.itemDetails}>{item.details}</p>
                           </div>
-                          <h5 style={styles.itemTitle}>{item.topic}</h5>
-                          <p style={styles.itemDetails}>{item.details}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
 
-                  {/* Action Items Render */}
-                  {activeTab === "actions" && (
-                    <ul style={styles.actionList}>
-                      {pipelineData.analytics.action_items?.map((action, index) => (
-                        <li key={index} style={styles.actionItem}>
-                          <span style={{color: '#2563eb', fontWeight: 'bold'}}>📌</span> {action}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
+                    {activeTab === "actions" && (
+                      <ul style={styles.actionList}>
+                        {pipelineData.analytics.action_items?.map((action, index) => (
+                          <li key={index} style={styles.actionItem}>📌 {action}</li>
+                        ))}
+                        {(!pipelineData.analytics.action_items || pipelineData.analytics.action_items.length === 0) && (
+                          <p style={{color: "#6b7280", fontStyle: "italic"}}>No clear structural action deliverables designated.</p>
+                        )}
+                      </ul>
+                    )}
+                  </div>
                 </div>
+              </section>
 
-              </div>
-            </section>
+              {/* Right Column: Grounded Q&A Conversational Assistant - NEW */}
+              <section style={styles.card}>
+                <h2 style={{ ...styles.cardTitle, color: "#7c3aed" }}>💬 Cross-Modal Q&A Assistant</h2>
+                <div style={styles.chatWrapper}>
+                  <div style={styles.chatDisplayWindow}>
+                    {chatHistory.length === 0 ? (
+                      <p style={styles.chatPlaceholder}>Ask questions like: <em>"What were the core animal lifespans discussed?"</em> or <em>"Does this content match slide 4 text?"</em></p>
+                    ) : (
+                      chatHistory.map((msg, index) => (
+                        <div key={index} style={msg.role === "user" ? styles.userBubbleRow : styles.assistantBubbleRow}>
+                          <div style={msg.role === "user" ? styles.userBubble : styles.assistantBubble}>
+                            <strong>{msg.role === "user" ? "You: " : "Assistant: "}</strong>
+                            {msg.text}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {queryLoading && (
+                      <div style={styles.assistantBubbleRow}>
+                        <div style={styles.assistantBubble}><em>Assistant is cross-referencing timeline tokens...</em></div>
+                      </div>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleAskQuestion} style={styles.chatInputForm}>
+                    <input
+                      type="text"
+                      value={userQuery}
+                      onChange={(e) => setUserQuery(e.target.value)}
+                      placeholder="Type a custom query..."
+                      disabled={queryLoading}
+                      style={styles.chatInputField}
+                    />
+                    <button type="submit" disabled={queryLoading || !userQuery.trim()} style={styles.chatSendBtn}>
+                      Send
+                    </button>
+                  </form>
+                </div>
+              </section>
+
+            </div>
           )}
         </>
       )}
@@ -221,51 +277,57 @@ function App() {
   );
 }
 
-// Integrated modern styles maintaining user's theme (blue accent, emerald success)
 const styles = {
-  container: { maxWidth: "1200px", margin: "0 auto", padding: "40px 20px", fontFamily: "system-ui, -apple-system, sans-serif", color: "#1f2937", backgroundColor: "#f9fafb", minHeight: "100vh", boxSizing: "border-box" },
+  container: { maxWidth: "1280px", margin: "0 auto", padding: "40px 20px", fontFamily: "system-ui, -apple-system, sans-serif", color: "#1f2937", backgroundColor: "#f9fafb", minHeight: "100vh", boxSizing: "border-box" },
   header: { textAlign: "center", marginBottom: "40px" },
   mainGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" },
-  card: { backgroundColor: "#ffffff", padding: "24px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "1px solid #e5e7eb" },
-  cardTitle: { marginTop: 0, marginBottom: "20px", fontSize: "20px", fontWeight: "700", borderBottom: "2px solid #f3f4f6", paddingBottom: "10px", color: "#111827" },
+  card: { backgroundColor: "#ffffff", padding: "24px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "1px solid #e5e7eb", display: "flex", flexDirection: "column" },
+  cardTitle: { marginTop: 0, marginBottom: "20px", fontSize: "18px", fontWeight: "700", borderBottom: "2px solid #f3f4f6", paddingBottom: "10px", color: "#111827" },
   form: { display: "flex", flexDirection: "column", gap: "20px" },
   inputGroup: { display: "flex", flexDirection: "column", gap: "8px" },
   label: { fontWeight: "600", fontSize: "14px", color: "#4b5563" },
   fileInput: { padding: "10px", border: "1px dashed #d1d5db", borderRadius: "6px", backgroundColor: "#fbfbfb", color: "#6b7280" },
-  btn: { backgroundColor: "#2563eb", color: "#ffffff", padding: "12px", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "pointer", transition: "background-color 0.2s", fontSize: "15px" },
+  btn: { backgroundColor: "#2563eb", color: "#ffffff", padding: "12px", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "pointer", fontSize: "15px" },
   btnDisabled: { backgroundColor: "#9ca3af", color: "#ffffff", padding: "12px", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "not-allowed", fontSize: "15px" },
   logConsole: { backgroundColor: "#1e293b", color: "#f8fafc", padding: "20px", borderRadius: "8px", minHeight: "150px", display: "flex", flexDirection: "column", justifyContent: "center" },
-  logText: { fontSize: "16px", margin: 0, fontFamily: "monospace", lineHeight: "1.5" },
+  logText: { fontSize: "15px", margin: 0, fontFamily: "monospace" },
   logSubText: { fontSize: "12px", color: "#94a3b8", marginTop: "12px", fontFamily: "monospace" },
   placeholderText: { color: "#64748b", fontStyle: "italic", textAlign: "center", margin: 0 },
-  outputGrid: { display: "flex", flexDirection: "column", gap: "16px" },
+  outputGrid: { display: "flex", flexDirection: "column", gap: "12px" },
   outputItem: { display: "flex", flexDirection: "column", gap: "4px" },
-  outputLabel: { fontSize: "14px", color: "#6b7280" },
-  codeBlock: { display: "block", backgroundColor: "#f1f5f9", padding: "12px", borderRadius: "6px", fontFamily: "monospace", fontSize: "13px", color: "#0f172a", overflowX: "auto", border: "1px solid #e2e8f0" },
+  outputLabel: { fontSize: "13px", color: "#6b7280" },
+  codeBlock: { display: "block", backgroundColor: "#f1f5f9", padding: "10px", borderRadius: "6px", fontFamily: "monospace", fontSize: "13px", color: "#0f172a", overflowX: "auto", border: "1px solid #e2e8f0" },
 
-  // NEW Styles for Intelligence Dashboard Layer
-  analyticsWrapper: { display: "flex", flexDirection: "column", gap: "20px" },
-  summaryCard: { backgroundColor: "#dbeafe", padding: "20px", borderRadius: "8px", borderLeft: "4px solid #3b82f6" },
-  summaryText: { fontSize: "15px", color: "#1e3a8a", margin: 0, lineHeight: "1.6" },
-  
-  tabBar: { display: "flex", gap: "8px", borderBottom: "2px solid #e5e7eb", marginBottom: "10px" },
-  tabButton: { padding: "10px 16px", background: "none", border: "none", borderBottom: "3px solid transparent", color: "#6b7280", fontWeight: "600", cursor: "pointer", fontSize: "15px" },
-  activeTabButton: { padding: "10px 16px", background: "none", border: "none", borderBottom: "3px solid #2563eb", color: "#2563eb", fontWeight: "700", cursor: "pointer", fontSize: "15px" },
-  
-  tabContentContainer: { padding: "10px 0" },
-  tabContentList: { display: "flex", flexDirection: "column", gap: "16px" },
-  
-  // Timeline UI specifics
-  timelineItem: { backgroundColor: "#ffffff", padding: "16px", borderRadius: "8px", border: "1px solid #e5e7eb", display: "flex", flexDirection: "column", gap: "10px" },
-  timelineMeta: { display: "flex", gap: "10px" },
-  timeBadge: { backgroundColor: "#2563eb", color: "#ffffff", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px", fontFamily: "monospace" },
-  slideBadge: { backgroundColor: "#10b981", color: "#ffffff", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px" },
-  itemTitle: { margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" },
-  itemDetails: { margin: 0, fontSize: "14px", color: "#4b5563", lineHeight: "1.5" },
-  
-  // Action Items UI specifics
-  actionList: { listStyleType: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "12px" },
-  actionItem: { backgroundColor: "#ffffff", padding: "16px", borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "15px", color: "#334155", display: "flex", gap: "12px", alignItems: "center"}
+  // Split Grid Layout for Report vs Chat Panel
+  dashboardSplitGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginTop: "24px", alignItems: "start" },
+  analyticsWrapper: { display: "flex", flexDirection: "column", gap: "16px" },
+  summaryCard: { backgroundColor: "#eff6ff", padding: "16px", borderRadius: "8px", borderLeft: "4px solid #3b82f6" },
+  summaryText: { fontSize: "14px", color: "#1e3a8a", margin: 0, lineHeight: "1.5" },
+  tabBar: { display: "flex", gap: "4px", borderBottom: "2px solid #e5e7eb" },
+  tabButton: { padding: "8px 12px", background: "none", border: "none", borderBottom: "3px solid transparent", color: "#6b7280", fontWeight: "600", cursor: "pointer", fontSize: "14px" },
+  activeTabButton: { padding: "8px 12px", background: "none", border: "none", borderBottom: "3px solid #2563eb", color: "#2563eb", fontWeight: "700", cursor: "pointer", fontSize: "14px" },
+  tabContentContainer: { padding: "5px 0" },
+  tabContentList: { display: "flex", flexDirection: "column", gap: "12px" },
+  timelineItem: { backgroundColor: "#f9fafb", padding: "14px", borderRadius: "8px", border: "1px solid #e5e7eb" },
+  timelineMeta: { display: "flex", gap: "8px", marginBottom: "8px" },
+  timeBadge: { backgroundColor: "#2563eb", color: "#ffffff", padding: "2px 6px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px", fontFamily: "monospace" },
+  slideBadge: { backgroundColor: "#10b981", color: "#ffffff", padding: "2px 6px", borderRadius: "4px", fontWeight: "bold", fontSize: "11px" },
+  itemTitle: { margin: "0 0 4px 0", fontSize: "15px", fontWeight: "700", color: "#111827" },
+  itemDetails: { margin: 0, fontSize: "13px", color: "#4b5563", lineHeight: "1.4" },
+  actionList: { listStyleType: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" },
+  actionItem: { backgroundColor: "#f9fafb", padding: "12px", borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "14px", color: "#334155" },
+
+  // Chat UI Styles
+  chatWrapper: { display: "flex", flexDirection: "column", height: "450px", justifyContent: "space-between" },
+  chatDisplayWindow: { flexGrow: 1, backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", overflowY: "auto", marginBottom: "16px", display: "flex", flexDirection: "column", gap: "12px" },
+  chatPlaceholder: { color: "#9ca3af", fontStyle: "italic", textAlign: "center", fontSize: "14px", margin: "auto 0" },
+  userBubbleRow: { display: "flex", justifyContent: "flex-end" },
+  userBubble: { backgroundColor: "#e0f2fe", color: "#0369a1", padding: "10px 14px", borderRadius: "12px 12px 0 12px", fontSize: "14px", maxWidth: "80%", lineHeight: "1.4" },
+  assistantBubbleRow: { display: "flex", justifyContent: "flex-start" },
+  assistantBubble: { backgroundColor: "#f3f4f6", color: "#374151", padding: "10px 14px", borderRadius: "12px 12px 12px 0", fontSize: "14px", maxWidth: "80%", border: "1px solid #e5e7eb", lineHeight: "1.4" },
+  chatInputForm: { display: "flex", gap: "10px" },
+  chatInputField: { flexGrow: 1, padding: "12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", outline: "none" },
+  chatSendBtn: { backgroundColor: "#7c3aed", color: "#ffffff", padding: "0 20px", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "pointer", fontSize: "14px" }
 };
 
 export default App;
