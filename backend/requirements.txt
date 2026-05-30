@@ -5,3 +5,4 @@ pypdf
 ffmpeg-python
 google-genai
 pydantic
+python-multipart
