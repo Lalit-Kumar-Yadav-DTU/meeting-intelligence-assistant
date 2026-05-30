@@ -128,24 +128,19 @@ Declaring cloud API endpoints globally causes immediate crashes during server bo
 
 ## Sample Queries & Cross-Modal Grounding
 
-### Query 1 — Audio + PDF
-> *"Which animal species lives longer according to the conversation, and does this topic exist anywhere in the uploaded slides?"*
+Here are three example scenarios demonstrating true cross-modal reasoning where the assistant synthesizes visual timelines, document text, and vocal audio simultaneously:
 
-The assistant isolates the audio at `00:46` to determine the Greenland shark lives 270–512 years (outliving the giant tortoise), then cross-references all 20 slide pages — explicitly flagging that the topic is absent from the computer science interview deck.
+### 🔹 Query 1 — Cross-Modal Rhetoric Parsing
+* **User Query:** *"What competitive rhetoric from Satya Nadella was discussed, at what timestamp did it occur, and which slide covers it?"*
+* **Cross-Modal Resolution:** The engine scans the audio track to pinpoint the "making them dance" quote at timestamp **00:29**, automatically matching the visual slide index to display **Slide 4** for complete contextual grounding.
 
----
+### 🔹 Query 2 — Core Strategic Takeaways
+* **User Query:** *"What is the core message of the conversation regarding strategic autonomy, and what is the final slide recommendation?"*
+* **Cross-Modal Resolution:** The model synthesizes the final conversational audio block with the text array of the document to explain the "playing our own music" strategy, anchoring the conclusion natively to **Slide 5** (`00:58`).
 
-### Query 2 — Audio + Video Frame
-> *"What project conclusions were reached at timestamp 00:21, and what was shown on screen at that time?"*
-
-The assistant extracts the spoken content at `00:21` (discussion of African elephants living 60–85 years), then anchors the corresponding visual to `/processed/videoplayback/frames/frame_0021.png`.
-
----
-
-### Query 3 — Audio + PDF
-> *"Review the action items from the talk and identify which specific slide maps to those deliverables."*
-
-The assistant builds an action item array from the spoken conversation, then runs a string-similarity check against the slide text index — outputting a clear slide reference (e.g., **Slide 4**) for user verification.
+### 🔹 Query 3 — Investment Context Mapping
+* **User Query:** *"Why did Microsoft make significant investments in OpenAI according to the meeting timeline?"*
+* **Cross-Modal Resolution:** The system maps the opening acoustic tokens directly to **Slide 2** at timestamp **00:00**, extracting the underlying market anxiety regarding catching up to Google's footprint.
 
 ---
 
