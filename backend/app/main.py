@@ -1,11 +1,21 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
-from app.pipeline import MeetingPipeline
 import os
 import shutil
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Meeting Intelligence Assistant Backend")
+from app.config import settings
+from app.pipeline import MeetingPipeline
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup Phase: Safely initialize persistent storage directories
+    settings.initialize_dirs()
+    yield
+    # Shutdown Phase: Clean up connections if needed
+
+# Initialize the application instance with the unified lifespan manager
+app = FastAPI(title="Meeting Intelligence Assistant Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,7 +29,7 @@ app.add_middleware(
 processing_jobs = {}
 
 def async_processing_worker(meeting_id: str, video_path: str, deck_path: str):
-    """Background execution loop for handling heavy file decoding."""
+    """Background execution loop for handling heavy file decoding and AI synthesis."""
     try:
         processing_jobs[meeting_id] = "Processing: Extracting audio tracks..."
         
@@ -40,20 +50,21 @@ def async_processing_worker(meeting_id: str, video_path: str, deck_path: str):
         processing_jobs[meeting_id] = "Processing: Indexing document contents..."
         slide_data = MeetingPipeline.extract_pdf_text(deck_path)
 
-        # 5. Pipeline completion update
+        # 5. Run Multimodal Gemini Analytics Token Sync
+        processing_jobs[meeting_id] = "Processing: Orchestrating timeline sync via Gemini API..."
+        intelligence_report = MeetingPipeline.generate_intelligence_report(audio_output, slide_data)
+
+        # 6. Pipeline completion update mapped to the UI expectations
         processing_jobs[meeting_id] = {
             "status": "completed",
             "audio_path": audio_output,
             "frames_directory": frames_dir,
             "slide_count": len(slide_data),
-            "slide_index": slide_data
+            "analytics": intelligence_report  # Fully passes the structured timeline & action items
         }
+        
     except Exception as e:
         processing_jobs[meeting_id] = f"Failed: {str(e)}"
-
-@app.on_event("startup")
-def startup_event():
-    settings.initialize_dirs()
 
 @app.get("/health")
 def health_check():

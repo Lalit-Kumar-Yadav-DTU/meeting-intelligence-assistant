@@ -1,7 +1,10 @@
 import os
+import json
 import ffmpeg
-from pypdf import PdfReader
 import logging
+from pypdf import PdfReader
+from google import genai
+from google.genai import types
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,9 +41,7 @@ class MeetingPipeline:
             os.makedirs(output_frames_dir, exist_ok=True)
             logger.info(f"Starting frame extraction at {fps} FPS to: {output_frames_dir}")
             
-            # Pattern creates names like: frame_0001.png, frame_0002.png
             output_pattern = os.path.join(output_frames_dir, "frame_%04d.png")
-            
             (
                 ffmpeg
                 .input(video_path)
@@ -76,3 +77,60 @@ class MeetingPipeline:
         except Exception as e:
             logger.error(f"PDF Parsing Error: {str(e)}")
             raise Exception(f"Failed to index slide document: {str(e)}")
+
+    @staticmethod
+    def generate_intelligence_report(audio_path: str, slide_index: list) -> dict:
+        """
+        Uploads the raw meeting audio track to Gemini and blends it with 
+        the scraped presentation slide text to formulate a structured, 
+        time-synchronized timeline analysis.
+        """
+        logger.info("Initializing multimodal analysis pipeline via modern GenAI SDK...")
+        
+        try:
+            # Initialize client at execution time to ensure system environment keys are fully populated
+            client = genai.Client()
+
+            # 1. Stage the file payload using the updated files API
+            logger.info("Uploading audio track to Gemini storage cluster...")
+            audio_file = client.files.upload(file=audio_path)
+            logger.info(f"Audio asset uploaded successfully. Remote Target URI: {audio_file.name}")
+
+            # 2. Build the structured analysis prompt
+            prompt = f"""
+            You are an advanced Meeting Intelligence Orchestrator. You have been provided with the raw audio track of a recorded meeting presentation and a sequential text index of the slides displayed during the talk.
+
+            Here is the text content from the presentation deck slide-by-slide:
+            {json.dumps(slide_index, indent=2)}
+
+            Analyze the audio track and map it against the presentation context to generate a comprehensive JSON report containing:
+            1. 'executive_summary': A high-level abstract of the main meeting outcomes.
+            2. 'timeline': A sequential array of chapters or key milestones. Each entry MUST include:
+               - 'timestamp': The approximate time mark (MM:SS) in the audio when this topic is discussed.
+               - 'topic': A short summary title of the current discussion point.
+               - 'slide_reference': The precise 'slide_number' from the provided index that corresponds structurally to this part of the talk.
+               - 'details': Contextual bullet points elaborating on what was explained.
+            3. 'action_items': A strict array of deliverables assigning who needs to do what based on the audio conversation.
+
+            Return your absolute final response as a clean, standard, parseable JSON object adhering strictly to this schema. Do not wrap it in markdown block tags.
+            """
+
+            # 3. Call the generation model using formal configuration types
+            logger.info("Executing multimodal token sync orchestration...")
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[audio_file, prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+
+            # 4. Clean up the uploaded asset from remote cloud staging
+            logger.info("Cleaning up cloud staging files...")
+            client.files.delete(name=audio_file.name)
+
+            return json.loads(response.text)
+
+        except Exception as e:
+            logger.error(f"Gemini Intelligence Engine Failure: {str(e)}")
+            raise Exception(f"AI synchronization pipeline failed: {str(e)}")
